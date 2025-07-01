@@ -1,14 +1,16 @@
 import streamlit as st
 from PIL import Image
 
-# Initialize session state
-if 'current_question' not in st.session_state:
-    st.session_state.current_question = 0
-    st.session_state.score = 0
-    st.session_state.selected_option = None
-    st.session_state.quiz_complete = False
-    st.session_state.user_submitted = False
-    st.session_state.user_name = ""
+# Initialize all session state variables at the start
+if 'quiz_data' not in st.session_state:
+    st.session_state.quiz_data = {
+        'current_question': 0,
+        'score': 0,
+        'selected_option': None,
+        'quiz_complete': False,
+        'user_submitted': False,
+        'user_name': ""
+    }
 
 # Quiz questions data with images
 questions = [
@@ -36,20 +38,24 @@ def landing_page():
     Please enter your name to begin:
     """)
     
-    # Collect user name outside of form
-    user_name = st.text_input("Your Name", key="name_input")
+    # Use a separate key for the text input widget
+    name_input = st.text_input("Your Name", key="name_input_widget")
     
-    if st.button("Start Quiz"):
-        if user_name:
-            st.session_state.user_name = user_name
-            st.session_state.user_submitted = True
+    if st.button("Start Quiz", key="start_quiz_button"):
+        if name_input:
+            st.session_state.quiz_data.update({
+                'user_name': name_input,
+                'user_submitted': True
+            })
             st.rerun()
         else:
             st.warning("Please enter your name")
 
 def display_question():
-    question_data = questions[st.session_state.current_question]
-    st.subheader(f"Question {st.session_state.current_question + 1} of {len(questions)}")
+    current = st.session_state.quiz_data['current_question']
+    question_data = questions[current]
+    
+    st.subheader(f"Question {current + 1} of {len(questions)}")
     
     col1, col2 = st.columns([2, 1])
     with col1:
@@ -61,53 +67,60 @@ def display_question():
     for i, option in enumerate(question_data["options"]):
         if cols[i % 2].button(
             option,
-            key=f"option_{i}",
+            key=f"option_{current}_{i}",  # Unique key per question
             use_container_width=True,
-            disabled=st.session_state.selected_option is not None
+            disabled=st.session_state.quiz_data['selected_option'] is not None
         ):
-            st.session_state.selected_option = option
+            st.session_state.quiz_data['selected_option'] = option
             check_answer()
 
 def check_answer():
-    question_data = questions[st.session_state.current_question]
-    if st.session_state.selected_option == question_data["answer"]:
-        st.session_state.score += 1
+    current = st.session_state.quiz_data['current_question']
+    question_data = questions[current]
+    selected = st.session_state.quiz_data['selected_option']
+    
+    if selected == question_data["answer"]:
+        st.session_state.quiz_data['score'] += 1
         st.success("✅ Correct!")
     else:
         st.error(f"❌ Incorrect. The correct answer is: {question_data['answer']}")
     
     st.info(question_data["explanation"])
     
-    if st.button("Continue"):
+    if st.button("Continue", key=f"continue_{current}"):
         next_question()
 
 def next_question():
-    st.session_state.selected_option = None
-    if st.session_state.current_question < len(questions) - 1:
-        st.session_state.current_question += 1
+    quiz_data = st.session_state.quiz_data
+    quiz_data['selected_option'] = None
+    if quiz_data['current_question'] < len(questions) - 1:
+        quiz_data['current_question'] += 1
     else:
-        st.session_state.quiz_complete = True
+        quiz_data['quiz_complete'] = True
     st.rerun()
 
 def show_results():
+    quiz_data = st.session_state.quiz_data
     st.header("Quiz Complete!")
-    st.subheader(f"Your Score: {st.session_state.score}/{len(questions)}")
-    st.subheader(f"Thanks for playing, {st.session_state.user_name}!")
+    st.subheader(f"Your Score: {quiz_data['score']}/{len(questions)}")
+    st.subheader(f"Thanks for playing, {quiz_data['user_name']}!")
     
-    if st.button("🔄 Take Quiz Again"):
-        st.session_state.current_question = 0
-        st.session_state.score = 0
-        st.session_state.selected_option = None
-        st.session_state.quiz_complete = False
+    if st.button("🔄 Take Quiz Again", key="restart_quiz"):
+        quiz_data.update({
+            'current_question': 0,
+            'score': 0,
+            'selected_option': None,
+            'quiz_complete': False
+        })
         st.rerun()
 
 # Main app logic
-if not st.session_state.user_submitted:
+if not st.session_state.quiz_data['user_submitted']:
     landing_page()
 else:
-    st.title(f"Learning Quiz - Welcome, {st.session_state.user_name}!")
+    st.title(f"Learning Quiz - Welcome, {st.session_state.quiz_data['user_name']}!")
     
-    if not st.session_state.quiz_complete:
+    if not st.session_state.quiz_data['quiz_complete']:
         display_question()
     else:
         show_results()
